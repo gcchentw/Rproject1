@@ -1,0 +1,228 @@
+---
+title: "如何讀取政府開放資料? (以新北市人口統計資料為例)"
+author: "gcchen"
+date: "2019/5/10"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#### 資料來源：政府資料開放平台 data.gov.tw
+#### 資料名稱：新北市人口統計資料
+#### 資料格式：.csv
+#### 資料欄位：612,263 筆 具有 6 個變數的資料集  
+  
+ \   ver $\alpha 1.0$
+ \   
+ 
+ \  
+ 
+
+
+以下是一系列範例程式的步驟，說明如何將下載的csv檔讀取並做後續應用。
+注意實際操作時，讀取檔案的路徑可能要重新調整:
+
+```{r}
+ntp <- read.csv("C:\\Users\\User\\Downloads\\新北市人口統計資訊_0008534750841870883628.csv",header=T)
+
+```
+
+看看資料集的維度(dimension) :
+
+```{r}
+dim(ntp)   
+```
+看看資料集的摘要統計 :
+
+```{r}
+summary(ntp)   
+```
+
+看看資料集的前六筆：
+
+```{r}
+head(ntp)     
+```
+
+看看變數 AreaName 有幾種水準(類別)
+
+```{r}
+levels(ntp$AreaName)    
+```
+
+看看變數 Age 有幾種水準(類別)
+
+```{r}
+levels(ntp$Age)
+```
+
+看看變數 Year 有幾種水準(類別)，發現R將其視為數值資料 (所以"沒水準")
+
+```{r}
+levels(ntp$Year)
+```
+
+因此，將變數 Year 調整為因子(factor)資料，
+重新看看變數 Year 有幾種水準(類別)
+
+```{r}
+levels(as.factor(ntp$Year))
+```
+
+看看變數 Month 有幾種水準(類別)，發現R將其視為數值資料 (所以"沒水準")
+
+```{r}
+levels(ntp$Month)
+```
+
+因此，將變數 Month 調整為因子(factor)資料，
+重新看看變數 Month 有幾種水準(類別)
+
+```{r}
+levels(as.factor(ntp$Month)) 
+```
+
+每次都要用 `ntp$變數名稱` 來呼叫變數有點麻煩，
+所以利用 `attach(ntp)` 指令方便使用 ntp 資料集的各項變數：
+
+```{r}
+attach(ntp)
+```
+
+接下來就可以用較簡單的方式，取出八里區的男性資料：
+(不必再用 `ntp$Male[ntp$AreaName=="八里區"]`  )  
+不過因為取出的資料太多，故此處省略不印出。  
+
+```{r, results='hide'}
+Male[AreaName=="八里區"]  
+```
+
+接下來縮小範圍，取出八里區105年的男性資料：
+
+```{r}
+Male[AreaName=="八里區" & Year=="105"]
+```
+
+資料還是有點太多，接下來再縮小範圍，取出八里區105年43歲的男性、女性資料：
+
+```{r}
+Male[AreaName=="八里區" & Year=="105" & Age=="43歲"]
+Female[AreaName=="八里區" & Year=="105" & Age=="43歲"]
+```
+
+然後將資料賦值予變數 aa、bb 
+
+```{r}
+aa <- Male[AreaName=="八里區" & Year=="105" & Age=="43歲"]
+bb <- Female[AreaName=="八里區" & Year=="105" & Age=="43歲"]
+```
+
+透過變數 aa，繪製八里區105年43歲男性人數變化折線圖
+
+```{r}
+plot(1:12,aa,type="l")
+```
+
+再加上女性資料(重新調整y軸的範圍以符合完整顯示的需求)
+
+```{r}
+plot(1:12,aa,type="l",ylim=c(255,310))
+lines(1:12,bb,type="l",col="blue")
+```
+
+- 計算八里區105年43歲男性人數12個月之總和(是否有意義?)
+
+```{r}
+sum(Male[AreaName=="八里區" & Year=="105" & Age=="43歲"])
+```
+
+- 計算八里區105年43歲男性人數平均
+
+```{r}
+mean(Male[AreaName=="八里區" & Year=="105" & Age=="43歲"])
+```
+
+- 按照區域計算男性平均人數
+
+```{r}
+x1 <- by(Male ,AreaName , mean)    
+x1
+```
+
+- 按照區域計算女性平均人數
+
+```{r}
+x2 <- by(Female , AreaName , mean)   
+x2
+```
+
+- 各區男女性平均人數按照列方式並呈
+
+```{r}
+x12 <- rbind(x1,x2)   
+x12
+```
+
+- 各區男女性平均人數按照欄方式並呈
+
+```{r}
+x12a <- cbind(x1,x2)   
+x12a
+```
+
+- 去掉男、女性資料NA值後，各區男女性平均人數按照欄方式並呈
+
+```{r}
+y1 <- by(Male ,AreaName , mean ,na.rm=T)     
+y2 <- by(Female ,AreaName , mean ,na.rm=T)  
+y12a <- cbind(y1,y2)
+y12a
+```
+
+用 `class(y12a)` 得知 y12a 為矩陣型態
+
+```{r}
+class(y12a)
+```
+
+- 將資料轉成 dataframe格式
+
+```{r}
+rn<-as.vector(rownames(y12a))
+y12a <- data.frame(rn,y12a)
+names(y12a)
+```
+
+- 修改調整變數名稱
+
+```{r}
+names(y12a) <- c("區域","男性","女性")
+rownames(y12a)<-1:29
+y12a
+```
+
+
+- 利用 `attach(y12a)` 指令方便使用 y12a 資料集的各項變數
+- 引入ggplot2 套件
+- 依據不同區域繪製男性平均人數
+- 依據不同區域繪製女性平均人數
+
+```{r}
+attach(y12a)
+library(ggplot2)
+ggplot(y12a,aes(x=區域,y=男性))+geom_bar(stat="identity")
+ggplot(y12a,aes(x=區域,y=女性))+geom_bar(stat="identity")
+```
+
+從 50% 比率的水平線，可看出有哪些區域的男性比率高過女性
+(90-107年整體平均) 
+
+```{r}
+library(plyr)
+y12a$ratio <-  with(y12a,(男性/(男性+女性))*100)
+ggplot(y12a,aes(x=區域,y=ratio))+geom_bar(stat="identity")+geom_hline(yintercept=50)
+```

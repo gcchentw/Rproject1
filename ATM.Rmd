@@ -1,0 +1,160 @@
+---
+title: "郵局ATM資料(含經緯度)與地圖的結合"
+author: "gcchen"
+date: "2019/5/20"
+output: html_document
+---
+
+*** 
+
+```{r, echo=FALSE}
+knitr::opts_chunk$set(error = TRUE)
+```
+
+### 資料來源：政府資料開放平台 data.gov.tw 
+### 資料名稱：郵局 ATM 資料
+### 資料格式：.csv
+### 資料欄位：2016 筆 具有 16 個變數的資料集
+
+
+*** 
+
+
+注意:
+
+1.實際操作時，讀取檔案的路徑可能要重新調整:
+
+2.目前使用 R 3.6.0 版，套件皆無須 install
+
+```{r}
+atm <- read.csv("D:\\Dropbox\\R-WS\\post_atm.csv",header=T)
+```
+
+看看資料集的摘要統計
+
+```{r}
+summary(atm)    
+```
+
+看看資料集的前六筆資料
+
+```{r}
+head(atm)       
+```
+
+看看資料集的維度
+
+```{r}
+dim(atm)
+```
+
+安裝需要的套件
+
+```{r}
+#install.packages("ggmap", repos = "http://cran.us.r-project.org")
+library(ggmap)
+```
+
+```{r}
+# install.packages("mapproj", repos = "http://cran.us.r-project.org")
+library(mapproj)
+```
+
+儘管利用申請的 Google API key 繪圖，
+還是可能會出現使用額度的限制問題
+(Google要開始收費了!地圖可能不會出現，只剩框架)
+
+```{r}
+register_google(key="AIzaSyCQeopr5djsHTYbuJG9mZm_PUrOJB3m-Hk")
+map <- get_map(location = c(lon = 121, lat = 24),zoom = 7, language = "zh-TW")
+ggmap(map) + geom_point(aes(x = 經度, y = 緯度), data = atm) 
+
+```
+
+如何解決此問題?
+\
+暫時將地圖來源做調整，將 'get_map' source (來源) 改用 Stamen Maps
+
+```{r}
+map <- get_map(location = c(lon = 121, lat = 24),zoom = 7, language = "zh-TW", source = "stamen")
+ggmap(map) + geom_point(aes(x = 經度, y = 緯度), data = atm) 
+```
+
+其他考量：安裝和載入 leaflet 套件
+可參考以下以下文章：[R Leaflet 地圖套件：繪製網頁互動式地圖，呈現經緯度座標資料](https://blog.gtwang.org/r/r-leaflet-interactive-map-package-tutorial/) 
+
+```{r}
+# install.packages("leaflet" , repos = "http://cran.us.r-project.org")
+library(leaflet)
+```
+
+繪製捷運新埔站附近地圖
+
+```{r}
+map <- leaflet()
+map <- addTiles(map)
+map <- addMarkers(map, lng=121.468221, lat=25.023040, popup="我在捷運新埔站")
+map
+```
+
+整理取出位置介於 121.36 < 經度 < 121.56，24.9 < 緯度 < 25.1 
+的 ATM 位置資訊
+
+```{r}
+經度x <- atm[atm[,9]>121.36 & atm[,9]<121.56 & atm[,10]>24.9 & atm[,10]<25.1,9]
+緯度x <- atm[atm[,9]>121.36 & atm[,9]<121.56 & atm[,10]>24.9 & atm[,10]<25.1,10]
+xx <- as.data.frame(cbind(經度x,緯度x))
+```
+
+將此範圍內的 ATM 所在處以圓圈標示
+
+```{r}
+m <- leaflet(xx) %>%
+  addTiles() %>%
+  setView(lng = 121.468221, lat = 25.023040, zoom = 14)
+m %>% addCircles(lng = ~經度x, lat = ~緯度x)
+```
+
+將此範圍內的 ATM 所在處以隨機大小與色彩的圓圈標示
+
+```{r}
+set.seed(123)
+point.df <- data.frame(
+  lat = 緯度x,
+  long = 經度x,
+  size = runif(length(經度x), 5, 10),
+  color = sample(colors(), length(經度x))
+)
+m <- leaflet(point.df) %>%
+  addTiles() %>%
+  setView(lng = 121.468221, lat = 25.023040, zoom = 14)
+m %>% addCircleMarkers(radius = ~size, color = ~color, fill = FALSE)
+```
+
+將 `get_map` source (來源) 改用 Stamen Maps，利用 `ggmap` 指令
+繪製點圖以標示致理科大附近的郵局 ATM
+
+```{r}
+map <- get_map(location = c(lon = 121.468221, lat = 25.023040),
+               zoom = 12, language = "zh-TW",source = "stamen")
+ggmap(map) + geom_point(aes(x = 經度x, y = 緯度x), data = xx) 
+```
+
+利用 ggmap 的 qmplot 指令將圖形做不同變化與處理
+可參考以下以下文章：[ggmap: Spatial Visualization with
+ggplot2](http://vita.had.co.nz/papers/ggmap.pdf) 或
+[ggmap:使用ggplot2进行空间可视化绘图（上篇）](https://zhuanlan.zhihu.com/p/27154420)
+
+```{r}
+qmplot(經度x, 緯度x, data=xx, zoom = 12, maptype = "toner-lite", geom = "density2d", color = I("blue"))
+qmplot(經度x, 緯度x, data=xx, size = I(3.5), alpha = I(.6), legend = "topleft")
+qmplot(經度x, 緯度x, data=xx, zoom = 12, maptype = "watercolor", geom = c("point","density2d"), color = "blue" )
+qmplot(經度x, 緯度x, data=xx, zoom = 13, maptype = "watercolor", geom = "density2d", color = I("blue"))
+qmplot(經度x, 緯度x, data=xx, zoom = 12, maptype = "toner-2011", geom = "density2d", color = I("blue"))
+qmplot(經度x, 緯度x, data=xx, zoom = 12, maptype = "watercolor", geom = c("point","density2d"), color = I("blue"),extent = "device",legend = "right", padding = 0.02, force = TRUE,margins = TRUE)
+```
+
+*** 
+
+> 不斷地透過練習，檢視資料，是熟悉資料與掌握關鍵的唯一途徑...
+
